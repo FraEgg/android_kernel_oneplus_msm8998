@@ -67,6 +67,7 @@
 #define SWEEP_LEFT		0x02
 #define SWEEP_UP		0x04
 #define SWEEP_DOWN		0x08
+#define VIB_STRENGTH		20
 static struct synaptics_ts_data *gl_ts;
 static struct input_dev *gesture_dev;
 struct kobject *android_touch_kobj;
@@ -74,6 +75,8 @@ EXPORT_SYMBOL_GPL(android_touch_kobj);
 static int gestures_switch = 0;
 static int s2w_switch = 0;
 static int dt2w_switch = 0;
+int vib_strength = VIB_STRENGTH;
+extern void set_vibrate(int value);
 #endif
 
 /*----------------------Global Define--------------------------------*/
@@ -1323,6 +1326,7 @@ static void gesture_judge(struct synaptics_ts_data *ts)
 		//traditional s2w using userspace doubletap gesture from OnePlus (checks proximity sensor and vibrates)
 		} else if (DouTap_gesture) {
 			gesture_upload = DouTap;
+			set_vibrate(vib_strength);
 			input_report_key(ts->input_dev, keyCode, 1);
 			input_sync(ts->input_dev);
 			input_report_key(ts->input_dev, keyCode, 0);
@@ -1330,6 +1334,7 @@ static void gesture_judge(struct synaptics_ts_data *ts)
 
 		//traditional s2w if gestures not enabled in OnePlus settings (only turns on screen)
 		} else {
+			set_vibrate(vib_strength);
 			input_report_key(ts->input_dev, KEY_POWER, 1);
 			input_sync(ts->input_dev);
 			input_report_key(ts->input_dev, KEY_POWER, 0);
@@ -4888,6 +4893,26 @@ static ssize_t wake_gestures_dump(struct device *dev,
 
 static DEVICE_ATTR(wake_gestures, (S_IWUSR|S_IRUGO),
 	wake_gestures_show, wake_gestures_dump);
+	
+static ssize_t vib_strength_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	size_t count = 0;
+	count += sprintf(buf, "%d\n", vib_strength);
+	return count;
+}
+
+ static ssize_t vib_strength_dump(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	sscanf(buf, "%d ",&vib_strength);
+	if (vib_strength < 0 || vib_strength > 90)
+		vib_strength = 20;
+ 	return count;
+}
+
+ static DEVICE_ATTR(vib_strength, (S_IWUSR|S_IRUGO),
+	vib_strength_show, vib_strength_dump);
 #endif
 
 static int synaptics_ts_probe(struct i2c_client *client,
@@ -5163,6 +5188,10 @@ static int synaptics_ts_probe(struct i2c_client *client,
 	ret = sysfs_create_file(android_touch_kobj, &dev_attr_wake_gestures.attr);
 	if (ret) {
 		pr_warn("%s: sysfs_create_file failed for wake_gestures\n", __func__);
+	}
+	ret = sysfs_create_file(android_touch_kobj, &dev_attr_vib_strength.attr);
+	if (ret) {
+		pr_warn("%s: sysfs_create_file failed for vib_strength\n", __func__);
 	}
 #endif
 
